@@ -1,8 +1,37 @@
-# Official Postmark MCP Server&nbsp;&nbsp;&nbsp;[![NPM Version](https://img.shields.io/npm/v/@activecampaign/postmark-mcp.svg)](https://www.npmjs.com/package/@activecampaign/postmark-mcp)&nbsp;&nbsp;![MIT licensed](https://img.shields.io/npm/l/%40modelcontextprotocol%2Fsdk)
+# Postmark MCP Server (Fork)
 
-Send emails with Postmark using Claude and other MCP-compatible AI assistants.
+Fork of [ActiveCampaign/postmark-mcp](https://github.com/ActiveCampaign/postmark-mcp) with file attachment support.
 
-## Features
+## What's changed in this fork
+
+The `sendEmail` tool now supports **file attachments**. Pass an array of file paths and the server reads them from disk, base64-encodes the content, and infers the MIME type from the file extension.
+
+### New `attachments` parameter
+
+```json
+{
+  "to": "recipient@example.com",
+  "subject": "Monthly Report",
+  "textBody": "Please find the report attached.",
+  "attachments": [
+    { "filePath": "/path/to/report.csv" },
+    { "filePath": "/path/to/chart.png", "fileName": "monthly-chart.png" }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `filePath` | string | Yes | Absolute path to the file on disk |
+| `fileName` | string | No | Override the filename (defaults to basename of filePath) |
+
+### Supported MIME types
+
+`.csv`, `.txt`, `.json`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.html`, `.xml`, `.zip`, `.md` — anything else falls back to `application/octet-stream`.
+
+---
+
+## Features (upstream)
 - Exposes a Model Context Protocol (MCP) server for sending emails via your [Postmark account](https://account.postmarkapp.com/sign_up)
 - Simple configuration via environment variables
 - Comprehensive error handling and graceful shutdown
@@ -130,7 +159,11 @@ Send an email using Postmark to recipient@example.com with the subject "Meeting 
   "textBody": "Don't forget our team meeting tomorrow at 2 PM. Please bring your quarterly statistics report (and maybe some snacks).",
   "htmlBody": "HTML version of the email body", // Optional
   "from": "sender@example.com", // Optional, uses DEFAULT_SENDER_EMAIL if not provided
-  "tag": "meetings" // Optional
+  "tag": "meetings", // Optional
+  "attachments": [ // Optional
+    { "filePath": "/path/to/report.pdf" },
+    { "filePath": "/path/to/data.csv", "fileName": "quarterly-data.csv" }
+  ]
 }
 ```
 
@@ -140,6 +173,7 @@ Email sent successfully!
 MessageID: message-id-here
 To: recipient@example.com
 Subject: Meeting Reminder
+Attachments: report.pdf, quarterly-data.csv
 ```
 
 ### 2. sendEmailWithTemplate
