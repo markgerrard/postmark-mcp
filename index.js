@@ -7,6 +7,8 @@
  */
 
 import 'dotenv/config';
+import fs from 'node:fs';
+import path from 'node:path';
 import fetch from 'node-fetch';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -117,9 +119,13 @@ function registerTools(server, postmarkClient) {
       textBody: z.string().describe("Plain text body of the email"),
       htmlBody: z.string().optional().describe("HTML body of the email (optional)"),
       from: z.string().email().optional().describe("Sender email address (optional, uses default if not provided)"),
-      tag: z.string().optional().describe("Optional tag for categorization")
+      tag: z.string().optional().describe("Optional tag for categorization"),
+      attachments: z.array(z.object({
+        filePath: z.string().describe("Absolute path to the file to attach"),
+        fileName: z.string().optional().describe("Override filename (defaults to basename of filePath)")
+      })).optional().describe("Files to attach (reads from disk and base64-encodes)")
     },
-    async ({ to, subject, textBody, htmlBody, from, tag }) => {
+    async ({ to, subject, textBody, htmlBody, from, tag, attachments }) => {
       const emailData = {
         From: from || defaultSender,
         To: to,
@@ -133,14 +139,49 @@ function registerTools(server, postmarkClient) {
       if (htmlBody) emailData.HtmlBody = htmlBody;
       if (tag) emailData.Tag = tag;
 
+      if (attachments && attachments.length > 0) {
+        const MIME_TYPES = {
+          '.csv': 'text/csv',
+          '.txt': 'text/plain',
+          '.json': 'application/json',
+          '.pdf': 'application/pdf',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.html': 'text/html',
+          '.xml': 'application/xml',
+          '.zip': 'application/zip',
+          '.md': 'text/markdown',
+        };
+
+        emailData.Attachments = attachments.map(att => {
+          const content = fs.readFileSync(att.filePath);
+          const ext = path.extname(att.filePath).toLowerCase();
+          const name = att.fileName || path.basename(att.filePath);
+          const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+          return {
+            Name: name,
+            Content: content.toString('base64'),
+            ContentType: contentType
+          };
+        });
+
+        console.error(`Attaching ${attachments.length} file(s)`);
+      }
+
       console.error('Sending email..', { to, subject });
       const result = await postmarkClient.sendEmail(emailData);
       console.error('Email sent successfully: ', result.MessageID);
 
+      const attachInfo = emailData.Attachments
+        ? `\nAttachments: ${emailData.Attachments.map(a => a.Name).join(', ')}`
+        : '';
+
       return {
         content: [{
           type: "text",
-          text: `Email sent successfully!\nMessageID: ${result.MessageID}\nTo: ${to}\nSubject: ${subject}`
+          text: `Email sent successfully!\nMessageID: ${result.MessageID}\nTo: ${to}\nSubject: ${subject}${attachInfo}`
         }]
       };
     }
